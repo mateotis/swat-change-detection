@@ -52,6 +52,8 @@ services:
       - '8080:8080'
     networks:
       - water-treatment-network
+    volumes:
+        - ./:/swat-change-detection
 
 
 networks:
