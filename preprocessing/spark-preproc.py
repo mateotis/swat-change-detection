@@ -9,7 +9,7 @@ spark = SparkSession.builder \
 df = spark \
   .readStream \
   .format("kafka") \
-  .option("kafka.bootstrap.servers", "localhost:9092") \
+  .option("kafka.bootstrap.servers", "kafka:29092") \
   .option("subscribe", "water-treatment") \
   .option("startingOffsets", "earliest") \
   .load() # startingOffsets must be set to earliest so we can get all the data from the Kafka broker
