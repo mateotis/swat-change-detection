@@ -33,7 +33,24 @@ df = df.select(col("key").alias("timestamp"), "data.*") # Get the timestamp (the
 
 df.printSchema()
 
-query = df.writeStream.format("console").start() # Print stream to console as it arrives
-query.awaitTermination() # Don't continue until the data is printed
+# TODO more preprocessing steps
+
+# Once all the preproc is done, feed the new data back into Kafka in the same key-value format but under a different topic
+topic = "water-treatment-preproc"
+# We're basically reversing the steps we did when we consumed the data: renaming timestamp back to be the key and turning the features back into a json string to serve as the value
+procDf = df.select(col("timestamp").alias("key"), to_json(struct(df.columns[1:])).alias("value"))
+procDf.printSchema()
+
+ds = procDf \
+  .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)") \
+  .writeStream \
+  .format("kafka") \
+  .option("kafka.bootstrap.servers", "kafka:29092") \
+  .option("topic", topic) \
+  .option("checkpointLocation", "proc-swat-checkpoints") \
+  .start()
+ds.awaitTermination()
+
+#ds = df.writeStream.format("console").start() # Print stream to console as it arrives
 
 
