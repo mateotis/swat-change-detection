@@ -8,16 +8,17 @@ def delivery_report(err, msg):
 
 df = pd.read_excel("../data/swat-dataset.xlsx", skiprows = 1) # Load SWaT data
 df = df.drop(0, axis = 0) # Remove unnecessary row
+df = df.rename(columns={"GMT +0": "timestamp"}) # Give the timestamp column a proper name
 df = df.reset_index()
 
-df = df[["GMT +0", "FIT 401", "LIT 301", "P601 Status", "MV201", "P101 Status", "MV 501", "P301 Status"]] # Reduce dataset to the columns that will be attacked (plus the timestamp)
+df = df[["timestamp", "FIT 401", "LIT 301", "P601 Status", "MV201", "P101 Status", "MV 501", "P301 Status"]] # Reduce dataset to the columns that will be attacked (plus the timestamp)
 
 prod = Producer({'bootstrap.servers': 'localhost:9092'}) # Set up producer
 topic = "water-treatment"
 
 for idx, row in df.iterrows():
-	timestamp = row["GMT +0"] # Pass the timestamp as the key
-	jsonValue = row.drop("GMT +0").to_json() # Convert data to json
+	timestamp = row["timestamp"] # Pass the timestamp as the key
+	jsonValue = row.drop("timestamp").to_json() # Convert data to json
 	prod.produce(topic, key = timestamp, value = jsonValue, callback=delivery_report) # Ingest into Kafka
 	prod.flush() # Ensure it's delivered
 	

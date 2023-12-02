@@ -2,6 +2,19 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.functions import *
 
+def attackLabeling(df): # Add a new column labeling whether the system is under attack at any timestamp (attack times given in the dataset specification)
+	df = df.withColumn(
+		"attack_label",
+		when((df['timestamp'] >= '2019-07-20 07:08:46') & (df['timestamp'] <= '2019-07-20 07:10:31'), "attack")
+		.when((df['timestamp'] >= '2019-07-20 07:15:00') & (df['timestamp'] <= '2019-07-20 07:19:32'), "attack")
+		.when((df['timestamp'] >= '2019-07-20 07:26:57') & (df['timestamp'] <= '2019-07-20 07:30:48'), "attack")
+		.when((df['timestamp'] >= '2019-07-20 07:38:50') & (df['timestamp'] <= '2019-07-20 07:46:20'), "attack")
+		.when((df['timestamp'] >= '2019-07-20 07:54:00') & (df['timestamp'] <= '2019-07-20 07:56:00'), "attack")
+		.when((df['timestamp'] >= '2019-07-20 08:02:56') & (df['timestamp'] <= '2019-07-20 08:16:18'), "attack")
+		.otherwise("normal"))
+
+	return df
+
 # We know the structure of the data coming in from Kafka
 schema = StructType([
     StructField("FIT 401", DoubleType()),
@@ -30,6 +43,10 @@ df = spark \
 df = df.selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
 df = df.withColumn("data", from_json(df.value, schema)) # Deserialise the actual data from the json string and add it as a new column
 df = df.select(col("key").alias("timestamp"), "data.*") # Get the timestamp (the key) and the features in their separate columns in one dataframe
+
+df = df.withColumn("timestamp", col("timestamp").cast("timestamp")) # Convert timestamp into actual timestamp format
+
+df = attackLabeling(df) # Add attack/normal labeling
 
 df.printSchema()
 
