@@ -25,7 +25,7 @@ for idx, row in df.iterrows():
 	print("\r", end = '')
 	print(idx, "records delivered.", end = '', flush = True)
 
-	if(idx % 100 == 0): # Sleep for a second after every 100 records to simulate the arrival of data in "real-time" 
-		time.sleep(1)
+	#if(idx % 100 == 0): # Sleep for a second after every 100 records to simulate the arrival of data in "real-time" 
+	#	time.sleep(1)
 
 print("\n")
