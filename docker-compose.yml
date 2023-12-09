@@ -5,7 +5,7 @@ services:
     image: confluentinc/cp-zookeeper:7.4.3
     hostname: zookeeper
     container_name: swat-zookeeper
-    restart: always
+    restart: unless-stopped
     ports:
       - "2181:2181"
     environment:
@@ -19,7 +19,7 @@ services:
     image: confluentinc/cp-kafka:7.4.3
     hostname: kafka
     container_name: swat-kafka
-    restart: always
+    restart: unless-stopped
     ports:
       - "9092:9092"
       - "29092:29092"
@@ -46,7 +46,7 @@ services:
   cmak:
     image: ghcr.io/eshepelyuk/dckr/cmak-3.0.0.5:latest
     container_name: swat-cmak
-    restart: always
+    restart: unless-stopped
     ports:
       - "9000:9000"
     environment:
@@ -57,7 +57,7 @@ services:
   spark:
     image: docker.io/bitnami/spark:3.5
     container_name: swat-spark
-    restart: always
+    restart: unless-stopped
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
@@ -72,6 +72,59 @@ services:
     volumes:
         - ./:/swat-change-detection
 
+  influxdb:
+    image: influxdb:2.7.4
+    container_name: swat-influxdb
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    environment:
+     - DOCKER_INFLUXDB_INIT_MODE=setup
+     - DOCKER_INFLUXDB_INIT_USERNAME=admin
+     - DOCKER_INFLUXDB_INIT_PASSWORD=admin1234
+     - INFLUXDB_ADMIN_USER_TOKEN=SYyrzrHxew1mlzetBoluYQMHrGeQjtmkjde7DHk8fWrsGNWd5toMp1aNUFQyA4GrfCPeXn88uislDXOeddRF-Q==
+     - INFLUXDB_DB=influx
+     - DOCKER_INFLUXDB_INIT_ORG=swat-change-detection
+     - DOCKER_INFLUXDB_INIT_BUCKET=water-treatment
+    networks:
+      - water-treatment-network
+    volumes:
+      - influxdb-storage:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+
+  telegraf:
+    image: telegraf:1.28.5
+    container_name: swat-telegraf
+    restart: unless-stopped
+    ports:
+      - 8125:8125
+    volumes:
+      - ./config/telegraf.conf:/etc/telegraf/telegraf.conf:rw
+    depends_on:
+      - influxdb
+    networks:
+      - water-treatment-network
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: swat-grafana
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin1234
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - influxdb
+    networks:
+      - water-treatment-network
+
+volumes:
+  influxdb-storage:
+  influxdb-config:
+  grafana-storage:
 
 networks:
   water-treatment-network:
