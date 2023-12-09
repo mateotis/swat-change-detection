@@ -57,7 +57,7 @@ numerical_columns = ["FIT 401", "LIT 301", "P601 Status", "MV201", "P101 Status"
 agg_expr = [count(col(column)).alias(f"{column}_count") for column in numerical_columns]
 agg_expr += [mean(col(column)).alias(f"{column}_mean") for column in numerical_columns]
 
-# Add the aggregations to the streaming query
+# Add the aggregations to streaming query
 agg_query = df.groupBy("attack_label").agg(*agg_expr)
 
 # Print stats(count and mean) to the console
