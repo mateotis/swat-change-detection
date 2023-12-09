@@ -50,6 +50,22 @@ df = attackLabeling(df) # Add attack/normal labeling
 
 df.printSchema()
 
+# Define a list of numerical column names
+numerical_columns = ["FIT 401", "LIT 301", "P601 Status", "MV201", "P101 Status", "MV 501", "P301 Status"]
+
+# Add streaming aggregations for count and mean of each numerical column
+agg_expr = [count(col(column)).alias(f"{column}_count") for column in numerical_columns]
+agg_expr += [mean(col(column)).alias(f"{column}_mean") for column in numerical_columns]
+
+# Add the aggregations to the streaming query
+agg_query = df.groupBy("attack_label").agg(*agg_expr)
+
+# Print stats(count and mean) to the console
+agg_query.writeStream \
+    .outputMode("complete") \
+    .format("console") \
+    .start()
+
 # TODO more preprocessing steps
 
 # Once all the preproc is done, feed the new data back into Kafka in the same key-value format but under a different topic
