@@ -53,18 +53,30 @@ df.printSchema()
 # Define a list of numerical column names
 numerical_columns = ["FIT 401", "LIT 301", "P601 Status", "MV201", "P101 Status", "MV 501", "P301 Status"]
 
-# Add streaming aggregations for count and mean of each numerical column
-agg_expr = [count(col(column)).alias(f"{column}_count") for column in numerical_columns]
-agg_expr += [mean(col(column)).alias(f"{column}_mean") for column in numerical_columns]
 
-# Add the aggregations to streaming query
-agg_query = df.groupBy("attack_label").agg(*agg_expr)
+# Add streaming aggregations for count, mean, min, max, stddev, and rate of each numerical column
+agg_expr = []
+for column in numerical_columns:
+    agg_expr.extend([
+        count(col(column)).alias("{}_count".format(column)),
+        mean(col(column)).alias("{}_mean".format(column)),
+        min(col(column)).alias("{}_min".format(column)),
+        max(col(column)).alias("{}_max".format(column)),
+        stddev(col(column)).alias("{}_stddev".format(column)),
+        (count(col(column)) / 10 * 60).alias("{}_rate".format(column)),
+        # Average value within a 10-minute window
+        avg(col(column)).alias("{}_avg_10min".format(column)),
+    ])
 
-# Print stats(count and mean) to the console
+# Add the aggregations to the streaming query
+agg_query = df.groupBy(window("timestamp", "10 minutes"), "attack_label").agg(*agg_expr)
+
+# Print the real-time descriptive stats to the console based on windows size
 agg_query.writeStream \
     .outputMode("complete") \
     .format("console") \
     .start()
+
 
 # TODO more preprocessing steps
 
