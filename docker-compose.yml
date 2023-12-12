@@ -2,9 +2,9 @@ version: '3.6'
 
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.3
+    image: confluentinc/cp-zookeeper:7.4.3 # Pulling exact versions of images instead of "latest" to ensure compatibility
     hostname: zookeeper
-    container_name: swat-zookeeper
+    container_name: swat-zookeeper # Giving all the containers proper names
     restart: unless-stopped
     ports:
       - "2181:2181"
@@ -13,9 +13,9 @@ services:
       ZOOKEEPER_SERVER_ID: 1
       ZOOKEEPER_SERVERS: zookeeper:2888:3888
     networks:
-      - water-treatment-network
+      - water-treatment-network # Every container connects to the same network within Docker
 
-  kafka:
+  kafka: # This Kafka config is from Conduktor (https://github.com/conduktor/kafka-stack-docker-compose) and it's the first one that actually worked after many, many tries
     image: confluentinc/cp-kafka:7.4.3
     hostname: kafka
     container_name: swat-kafka
@@ -44,7 +44,7 @@ services:
       - water-treatment-network
 
   cmak:
-    image: ghcr.io/eshepelyuk/dckr/cmak-3.0.0.5:latest
+    image: ghcr.io/eshepelyuk/dckr/cmak-3.0.0.5:latest # I couldn't find a non-latest image of CMAK, so this stays as this
     container_name: swat-cmak
     restart: unless-stopped
     ports:
@@ -70,7 +70,7 @@ services:
     networks:
       - water-treatment-network
     volumes:
-        - ./:/swat-change-detection
+        - ./:/swat-change-detection # Mount the project folder so we can run the Spark scripts
 
   influxdb:
     image: influxdb:2.7.4
@@ -80,12 +80,12 @@ services:
       - 8086:8086
     environment:
      - DOCKER_INFLUXDB_INIT_MODE=setup
-     - DOCKER_INFLUXDB_INIT_USERNAME=admin
-     - DOCKER_INFLUXDB_INIT_PASSWORD=admin1234
-     - INFLUXDB_ADMIN_USER_TOKEN=SYyrzrHxew1mlzetBoluYQMHrGeQjtmkjde7DHk8fWrsGNWd5toMp1aNUFQyA4GrfCPeXn88uislDXOeddRF-Q==
      - INFLUXDB_DB=influx
-     - DOCKER_INFLUXDB_INIT_ORG=swat-change-detection
-     - DOCKER_INFLUXDB_INIT_BUCKET=water-treatment
+     - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_ADMIN_USER} # Login details (including the token) are stored in the environment file; this is much more secure
+     - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_ADMIN_PASSWORD} # InfluxDB mandates a password at least 8 characters long
+     - INFLUXDB_ADMIN_USER_TOKEN=${INFLUX_TOKEN}
+     - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
+     - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
     networks:
       - water-treatment-network
     volumes:
@@ -112,8 +112,8 @@ services:
     ports:
       - 3000:3000
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin1234
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
     volumes:
       - grafana-storage:/var/lib/grafana
     depends_on:
