@@ -1,0 +1,4 @@
+algorithm,detections,false-alarms,attack1-detected,attack2-detected,attack3-detected,attack4-detected,attack5-detected,attack6-detected
+kdq-tree,1,6,0,0,0,0,1,0
+pca-cd,4,11,0,1,1,1,0,1
+one-class-svm,0,695,0,0,0,0,0,0

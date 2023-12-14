@@ -1,14 +1,8 @@
-import random
 from river import anomaly
-from river import compose
-from river import datasets
-from river import metrics
-from river import preprocessing
-from confluent_kafka import Consumer, KafkaException, TopicPartition
+from confluent_kafka import Consumer, TopicPartition
 from confluent_kafka.admin import AdminClient
 import json
-import pandas as pd
-import numpy as np
+import csv
 
 def assignment_callback(consumer, partitions):
     for p in partitions:
@@ -22,7 +16,19 @@ def consumer_cleanup():
 	admin = AdminClient({'bootstrap.servers': 'localhost:9092'})
 	admin.delete_consumer_groups(group_ids = ["water-treatment-group"]) # Remove consumer group if it already exists so we can join with the new consuemr (otherwise it gives an error)
 
-#consumer_cleanup()
+def which_attack(timestamp):
+	attackNum = 0
+	if(timestamp >= '2019-07-20 07:08:46') & (timestamp <= '2019-07-20 07:10:31'): attackNum = 1
+	elif(timestamp >= '2019-07-20 07:15:00') & (timestamp <= '2019-07-20 07:19:32'): attackNum = 2
+	elif(timestamp >= '2019-07-20 07:26:57') & (timestamp <= '2019-07-20 07:30:48'): attackNum = 3
+	elif(timestamp >= '2019-07-20 07:38:50') & (timestamp <= '2019-07-20 07:46:20'): attackNum = 4
+	elif(timestamp >= '2019-07-20 07:54:00') & (timestamp <= '2019-07-20 07:56:00'): attackNum = 5
+	elif(timestamp >= '2019-07-20 08:02:56') & (timestamp <= '2019-07-20 08:16:18'): attackNum = 6
+
+	return attackNum
+
+
+consumer_cleanup()
 topic = 'water-treatment-preproc'
 
 consumer_conf = {'bootstrap.servers': 'localhost:9092', 'group.id': 'water-treatment-group', 'auto.offset.reset': 'earliest', 'enable.auto.commit': 'false'}
@@ -35,8 +41,12 @@ model = anomaly.QuantileFilter(
     q=0.999
 )
 
+results = {} # Track results in a dict
+
+detections = 0 # Actual detections (one per attack)
+falseAlarms = 0 # False alarms (with attack_label == "normal")
+attacksDetected = [0, 0, 0, 0, 0, 0] # There are six attacks; if the algorithm detects one, set the corresponding element to 1
 msgCount = 0
-detections = 0
 try:
 	while True:
 		msg = c.poll(1.0)
@@ -63,13 +73,33 @@ try:
 
 		if(is_anomaly):
 			print(f"Change detected at time {timestamp}, value: {features}")
-			detections += 1
-			print("Number of detections:", detections)
-		#auc.update(y, is_anomaly)
+
+			if(features["attack_label"] == "attack"):
+				attackNum = which_attack(features["timestamp"])
+				if(attacksDetected[attackNum - 1] == 0):
+					attacksDetected[attackNum - 1] = 1
+				detections += 1
+			else:
+				falseAlarms += 1
+				
+		print("\r", end = '')
+		print(msgCount, "records analysed.", end = '', flush = True)
 
 except KeyboardInterrupt:
 	pass
 
 finally:
 	print("Closing consumer.")
+	print(f"Detection statistics:\nActual detections: {detections}\nList: {attacksDetected}\nFalse alarms: {falseAlarms}")
+	# Fill out results dictionary
+	results["algorithm"] = "one-class-svm"
+	results["detections"] = detections
+	results["false-alarms"] = falseAlarms
+	for i in range(6):
+		results["attack" + str(i + 1) + "-detected"] = attacksDetected[i]
+
+	with open('./change-detection/results.csv', 'a') as f: # Write results to file
+		writer = csv.DictWriter(f, fieldnames=results.keys())
+		#writer.writeheader()
+		writer.writerows([results])
 	c.close()
