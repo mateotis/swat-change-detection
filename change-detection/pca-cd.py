@@ -4,7 +4,7 @@ from confluent_kafka.admin import AdminClient
 import json
 import pandas as pd
 import numpy as np
-from menelaus.data_drift import KdqTreeStreaming
+from menelaus.data_drift import KdqTreeStreaming, PCACD
 
 def assignment_callback(consumer, partitions):
     for p in partitions:
@@ -27,7 +27,7 @@ c.subscribe([topic], on_assign=assignment_callback) # Subscribe to topic
 reset_offset(c, topic) # Reset offset back to start in case it moved so the consumer can read the entire topic
 
 np.random.seed(1) # The kdq-tree implementation uses bootstrapping, so setting the seed ensures consistent reproduction of results
-kdq = KdqTreeStreaming(window_size=1000, alpha=0.05, bootstrap_samples=500, count_ubound=50) # Initialise the kdq-tree algorithm
+pca_cd = PCACD(window_size=50, divergence_metric="kl", delta = 0.1)
 
 msgCount = 0
 try:
@@ -41,8 +41,8 @@ try:
 
 		msgCount += 1
 
-		if(msgCount < 8000):
-			continue
+		#if(msgCount < 8000):
+		#	continue
 
 		timestamp = msg.key().decode('utf-8')
 		features = msg.value().decode('utf-8')
@@ -50,12 +50,14 @@ try:
 		features = pd.DataFrame.from_dict([features]) 
 
 		record = features.drop(columns = ["attack_label", "timestamp"]) # Pass the record to the drift detector without the attack label (since that would give it away, obviously)
-		kdq.update(record)
-		if(kdq.drift_state == "drift"):
+		pca_cd.update(record)
+		if(pca_cd.drift_state == "warning"):
+			print(f"Warning detected at", msgCount, timestamp, "entry is\n", features)
+		elif(pca_cd.drift_state == "drift"):
 			print(f"Drift detected at", msgCount, timestamp, "entry is\n", features)
 
-		print("\r", end = '')
-		print(msgCount, "records analysed.", end = '', flush = True)
+		#print("\r", end = '')
+		#print(msgCount, "records analysed.", end = '', flush = True)
 
 		#print("Timestamp:", timestamp, type(timestamp))
 		#print("Features:", features, type(features))

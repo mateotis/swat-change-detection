@@ -1,10 +1,14 @@
-# Test consumer to receive SWaT data from the producer
+import random
+from river import anomaly
+from river import compose
+from river import datasets
+from river import metrics
+from river import preprocessing
 from confluent_kafka import Consumer, KafkaException, TopicPartition
 from confluent_kafka.admin import AdminClient
 import json
 import pandas as pd
 import numpy as np
-from menelaus.data_drift import KdqTreeStreaming
 
 def assignment_callback(consumer, partitions):
     for p in partitions:
@@ -26,10 +30,13 @@ c = Consumer(consumer_conf)
 c.subscribe([topic], on_assign=assignment_callback) # Subscribe to topic
 reset_offset(c, topic) # Reset offset back to start in case it moved so the consumer can read the entire topic
 
-np.random.seed(1) # The kdq-tree implementation uses bootstrapping, so setting the seed ensures consistent reproduction of results
-kdq = KdqTreeStreaming(window_size=1000, alpha=0.05, bootstrap_samples=500, count_ubound=50) # Initialise the kdq-tree algorithm
+model = anomaly.QuantileFilter(
+    anomaly.OneClassSVM(nu=0.3),
+    q=0.999
+)
 
 msgCount = 0
+detections = 0
 try:
 	while True:
 		msg = c.poll(1.0)
@@ -41,28 +48,24 @@ try:
 
 		msgCount += 1
 
-		if(msgCount < 8000):
-			continue
-
 		timestamp = msg.key().decode('utf-8')
 		features = msg.value().decode('utf-8')
 		features = json.loads(features)
-		features = pd.DataFrame.from_dict([features]) 
+		#print(features)
+		#features = pd.DataFrame.from_dict([features]) 
 
-		record = features.drop(columns = ["attack_label", "timestamp"]) # Pass the record to the drift detector without the attack label (since that would give it away, obviously)
-		kdq.update(record)
-		if(kdq.drift_state == "drift"):
-			print(f"Drift detected at", msgCount, timestamp, "entry is\n", features)
+		 # Pass the record to the drift detector without the attack label (since that would give it away, obviously)
+		record = {k: features[k] for k in features.keys() - {'attack_label', 'timestamp'}}
 
-		print("\r", end = '')
-		print(msgCount, "records analysed.", end = '', flush = True)
+		score = model.score_one(record)
+		is_anomaly = model.classify(score)
+		model.learn_one(record)
 
-		#print("Timestamp:", timestamp, type(timestamp))
-		#print("Features:", features, type(features))
-
-		#c.close()
-		#exit()
-
+		if(is_anomaly):
+			print(f"Change detected at time {timestamp}, value: {features}")
+			detections += 1
+			print("Number of detections:", detections)
+		#auc.update(y, is_anomaly)
 
 except KeyboardInterrupt:
 	pass

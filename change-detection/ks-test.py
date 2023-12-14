@@ -1,10 +1,10 @@
-# Test consumer to receive SWaT data from the producer
+import random
+from river import drift
 from confluent_kafka import Consumer, KafkaException, TopicPartition
 from confluent_kafka.admin import AdminClient
 import json
 import pandas as pd
 import numpy as np
-from menelaus.data_drift import KdqTreeStreaming
 
 def assignment_callback(consumer, partitions):
     for p in partitions:
@@ -26,8 +26,8 @@ c = Consumer(consumer_conf)
 c.subscribe([topic], on_assign=assignment_callback) # Subscribe to topic
 reset_offset(c, topic) # Reset offset back to start in case it moved so the consumer can read the entire topic
 
-np.random.seed(1) # The kdq-tree implementation uses bootstrapping, so setting the seed ensures consistent reproduction of results
-kdq = KdqTreeStreaming(window_size=1000, alpha=0.05, bootstrap_samples=500, count_ubound=50) # Initialise the kdq-tree algorithm
+kswin = drift.KSWIN(alpha=0.000001, window_size = 100)
+trainingData = []
 
 msgCount = 0
 try:
@@ -41,28 +41,22 @@ try:
 
 		msgCount += 1
 
-		if(msgCount < 8000):
-			continue
-
 		timestamp = msg.key().decode('utf-8')
 		features = msg.value().decode('utf-8')
 		features = json.loads(features)
 		features = pd.DataFrame.from_dict([features]) 
 
-		record = features.drop(columns = ["attack_label", "timestamp"]) # Pass the record to the drift detector without the attack label (since that would give it away, obviously)
-		kdq.update(record)
-		if(kdq.drift_state == "drift"):
-			print(f"Drift detected at", msgCount, timestamp, "entry is\n", features)
+		record = features.drop(columns = ["attack_label"]) # Pass the record to the drift detector without the attack label (since that would give it away, obviously)
+		testVar = float(record["LIT 301"].item())
 
-		print("\r", end = '')
-		print(msgCount, "records analysed.", end = '', flush = True)
-
-		#print("Timestamp:", timestamp, type(timestamp))
-		#print("Features:", features, type(features))
-
-		#c.close()
-		#exit()
-
+		if(msgCount < 8000):
+			trainingData.append(testVar)
+		elif(msgCount == 8000):
+			kswin = drift.KSWIN(alpha=0.000001, window_size = 200, stat_size = 100, window = trainingData)
+		else:
+			kswin.update(testVar)
+			if kswin.drift_detected:
+				print(f"Change detected at time {timestamp}, value: {testVar}, label {features['attack_label'].item()}")
 
 except KeyboardInterrupt:
 	pass

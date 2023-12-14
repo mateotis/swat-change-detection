@@ -1,2 +1,4 @@
 **/.ipynb_checkpoints
 /test
+/config/telegraf.conf
+.env
