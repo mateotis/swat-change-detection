@@ -107,7 +107,7 @@ services:
 
   chronograf:
     image: chronograf:1.9.0  
-    container_name: swat-chronograf3
+    container_name: swat-chronograf
     restart: unless-stopped
     ports:
       - "8888:8888"
