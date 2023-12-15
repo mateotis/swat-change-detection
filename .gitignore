@@ -2,3 +2,4 @@
 /test
 /config/telegraf.conf
 .env
+**/__pycache__
