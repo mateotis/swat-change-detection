@@ -49,6 +49,7 @@ try:
 		elif(pca_cd.drift_state == "drift"):
 			print(f"Drift detected at", msgCount, timestamp, "entry is\n", features)
 
+			# Check if it's actually a change based on the attack label
 			if(features["attack_label"].item() == "attack"): # If so, figure out which attack it detected and with what delay
 				attackNum, delay = which_attack(features["timestamp"].item())
 				if(attacksDetected[attackNum - 1] == 0): # And store the results
@@ -61,12 +62,6 @@ try:
 
 		print("\r", end = '')
 		print(msgCount, "records analysed.", end = '', flush = True)
-
-		#print("Timestamp:", timestamp, type(timestamp))
-		#print("Features:", features, type(features))
-
-		#c.close()
-		#exit()
 
 
 except KeyboardInterrupt:

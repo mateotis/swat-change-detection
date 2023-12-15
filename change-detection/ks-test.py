@@ -1,24 +1,10 @@
-import random
 from river import drift
-from confluent_kafka import Consumer, KafkaException, TopicPartition
-from confluent_kafka.admin import AdminClient
+from confluent_kafka import Consumer
 import json
 import pandas as pd
-import numpy as np
+from change_detection_utils import *
 
-def assignment_callback(consumer, partitions):
-    for p in partitions:
-        print(f'Assigned to {p.topic}, partition {p.partition}')
-
-def reset_offset(consumer, topic): # Reset the offset for a topic back to the start
-	resetTP = [TopicPartition(topic, 0, 0)]
-	consumer.commit(offsets = resetTP, asynchronous = False)
-
-def consumer_cleanup():
-	admin = AdminClient({'bootstrap.servers': 'localhost:9092'})
-	admin.delete_consumer_groups(group_ids = ["water-treatment-group"]) # Remove consumer group if it already exists so we can join with the new consuemr (otherwise it gives an error)
-
-#consumer_cleanup()
+consumer_cleanup()
 topic = 'water-treatment-preproc'
 
 consumer_conf = {'bootstrap.servers': 'localhost:9092', 'group.id': 'water-treatment-group', 'auto.offset.reset': 'earliest', 'enable.auto.commit': 'false'}
@@ -28,6 +14,12 @@ reset_offset(c, topic) # Reset offset back to start in case it moved so the cons
 
 kswin = drift.KSWIN(alpha=0.000001, window_size = 100)
 trainingData = []
+algorithm = "ks-win"
+
+detections = 0 # Actual detections (one per attack)
+falseAlarms = 0 # False alarms (with attack_label == "normal")
+attacksDetected = [0, 0, 0, 0, 0, 0] # There are six attacks; if the algorithm detects one, set the corresponding element to 1
+delays = [0, 0, 0, 0, 0, 0]
 
 msgCount = 0
 try:
@@ -49,18 +41,35 @@ try:
 		record = features.drop(columns = ["attack_label"]) # Pass the record to the drift detector without the attack label (since that would give it away, obviously)
 		testVar = float(record["LIT 301"].item())
 
-		if(msgCount < 8000):
+		if(msgCount < 1000):
 			trainingData.append(testVar)
-		elif(msgCount == 8000):
-			kswin = drift.KSWIN(alpha=0.000001, window_size = 200, stat_size = 100, window = trainingData)
+		elif(msgCount == 1000):
+			kswin = drift.KSWIN(alpha=0.0001, window_size = 200, stat_size = 100, window = trainingData)
 		else:
 			kswin.update(testVar)
 			if kswin.drift_detected:
-				print(f"Change detected at time {timestamp}, value: {testVar}, label {features['attack_label'].item()}")
+				print(f"Drift detected at time {timestamp}, value: {testVar}, label {features['attack_label'].item()}")
+
+				# Check if it's actually a change based on the attack label
+				if(features["attack_label"].item() == "attack"): # If so, figure out which attack it detected and with what delay
+					attackNum, delay = which_attack(features["timestamp"].item())
+					if(attacksDetected[attackNum - 1] == 0): # And store the results
+						attacksDetected[attackNum - 1] = 1
+					if(delays[attackNum - 1] == 0):
+						delays[attackNum - 1] = delay
+					detections += 1
+				else:
+					falseAlarms += 1
+
+		print("\r", end = '')
+		print(msgCount, "records analysed.", end = '', flush = True)
 
 except KeyboardInterrupt:
 	pass
 
 finally:
 	print("Closing consumer.")
+	print(f"Detection statistics:\nActual detections: {detections}\nDetected attacks: {attacksDetected}\nDetection delays: {delays}\nFalse alarms: {falseAlarms}")
+	# Fill out results dictionary
+	save_results(algorithm, detections, falseAlarms, attacksDetected, delays) # Save results in a csv
 	c.close()
