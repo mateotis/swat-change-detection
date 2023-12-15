@@ -23,6 +23,7 @@
     - Token: (your InfluxDB API token)
     - Default Bucket: water-treatment
 9. You should be able to save the datasource. Now you can query the data and create dashboards in Grafana. Make sure you remember to set the time range to 20 July 2019!
+10. GO to  ```localhost:8888``` to access Chronograph. Login with same credentials as above you have used for Grafana. After adding URL and mentioned above, select 'InfluxDB v2 Auth' and then enter your influxDB token and Organization(same as Grafana) and the click 'add connection'. You will be able to create Dashboards after selecting InfluxDB from dropdown.
 
 ### Contributions:
 **Máté:** docker-compose file, Kafka data ingestion as stream, Kafka and Spark connection, Spark data transformation, TIG stack setup and configuration, readme instructions
