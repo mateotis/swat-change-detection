@@ -102,6 +102,7 @@ services:
       - ./config/telegraf.conf:/etc/telegraf/telegraf.conf:rw
     depends_on:
       - influxdb
+      - kafka
     networks:
       - water-treatment-network
 
@@ -112,8 +113,10 @@ services:
     ports:
       - "8888:8888"
     environment:
-      - INFLUXDB_USER=admin         
-      - INFLUXDB_PASSWORD=admin1234  
+      - INFLUXDB_USER=${INFLUX_ADMIN_USER}         
+      - INFLUXDB_PASSWORD=${INFLUX_ADMIN_PASSWORD}
+    volumes:
+      - chronograf-storage:/var/lib/chronograf
     depends_on:
       - influxdb
     networks:
@@ -140,6 +143,7 @@ volumes:
   influxdb-storage:
   influxdb-config:
   grafana-storage:
+  chronograf-storage:
 
 networks:
   water-treatment-network:
