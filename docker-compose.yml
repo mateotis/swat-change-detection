@@ -105,6 +105,21 @@ services:
     networks:
       - water-treatment-network
 
+  chronograf:
+    image: chronograf:1.9.0  
+    container_name: swat-chronograf3
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      - INFLUXDB_USER=admin         
+      - INFLUXDB_PASSWORD=admin1234  
+    depends_on:
+      - influxdb
+    networks:
+      - water-treatment-network
+
+  
   grafana:
     image: grafana/grafana:10.2.2
     container_name: swat-grafana
