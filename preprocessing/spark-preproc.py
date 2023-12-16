@@ -65,18 +65,22 @@ for column in numerical_columns:
         max(col(column)).alias("{}_max".format(column)),
         stddev(col(column)).alias("{}_stddev".format(column)),
         (count(col(column)) / 10 * 60).alias("{}_rate".format(column)),
-        # Average value within a 10-minute window
         avg(col(column)).alias("{}_avg_10min".format(column)),
     ])
 
-# Add the aggregations to the streaming query
-agg_query = df.groupBy(window("timestamp", "10 minutes"), "attack_label").agg(*agg_expr)
+window_size = "10 minutes"
+slide_interval = "5 minutes"
 
-# Print the real-time descriptive stats to the console based on windows size
+agg_query = df \
+    .withWatermark("timestamp", window_size) \
+    .groupBy(window("timestamp", window_size, slide_interval), "attack_label") \
+    .agg(*agg_expr)
+
 agg_query.writeStream \
     .outputMode("complete") \
     .format("console") \
     .start()
+
 
 # Once all the preproc is done, feed the new data back into Kafka in the same key-value format but under a different topic
 topic = "water-treatment-preproc"
