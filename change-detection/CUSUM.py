@@ -41,7 +41,7 @@ reset_offset(c, topic)
 msgCount = 0
 history_size = 10
 history = []
-threshold_multiplier = 1.0  # Adjust this multiplier for sensitivity
+threshold_multiplier = 5  # Adjust this multiplier for sensitivity
 cusum_threshold = 1.0  # Adjust this threshold for CUSUM sensitivity
 detections = 0
 false_alarms = 0
@@ -72,18 +72,15 @@ try:
             # Apply the CUSUM algorithm
             cusum_value = cusum_detector(history, cusum_threshold)
 
-            print(f"\rCurrent CUSUM value: {cusum_value}", end='', flush=True)
-
             # Check if a change point is detected
             if cusum_value > threshold_multiplier:
-                print(f"\nChange point detected at time {timestamp}, value: {current_value}, label {features['attack_label'].item()}, CUSUM value: {cusum_value}")
+                print(f"Change point detected at time {timestamp}, value: {current_value}, label {features['attack_label'].item()}, CUSUM value: {cusum_value}")
 
                 # Check if it's actually a change based on the attack label
                 if features["attack_label"].item() == "attack":
                     detections += 1
                     detection_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                    detection_delay = (time.time() - detection_time.timestamp()) * 1000  # Convert to milliseconds
-                    print(f"Detection delay: {detection_delay:.2f} milliseconds")
+                    detection_delays.append((time.time() - detection_time.timestamp()) * 1000)  # Convert to milliseconds
                 else:
                     false_alarms += 1
                     print(f"False alarm detected at time {timestamp}, value: {current_value}, label {features['attack_label'].item()}, CUSUM value: {cusum_value}")
@@ -96,12 +93,12 @@ except KeyboardInterrupt:
 finally:
     close_consumer(c)
 
-# Print performance metrics
-print(f"\nPerformance Metrics:")
-print(f"Total Detections: {detections}")
-print(f"False Alarms: {false_alarms}")
-if detections > 0:
-    avg_delay = sum(detection_delays) / detections
-    print(f"Average Detection Delay: {avg_delay:.2f} milliseconds")
-else:
-    print("No detections to calculate average delay.")
+    # Print performance metrics
+    print(f"\nPerformance Metrics:")
+    print(f"Total Detections: {detections}")
+    print(f"False Alarms: {false_alarms}")
+    if detections > 0:
+        avg_delay = sum(detection_delays) / detections
+        print(f"Average Detection Delay: {avg_delay:.2f} milliseconds")
+    else:
+        print("No detections to calculate average delay.")
