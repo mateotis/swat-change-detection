@@ -1,21 +1,7 @@
 import json
 import pandas as pd
-from confluent_kafka import Consumer, TopicPartition
-import time
-from datetime import datetime
-
-def assignment_callback(consumer, partitions):
-    for p in partitions:
-        print(f'Assigned to {p.topic}, partition {p.partition}')
-
-def reset_offset(consumer, topic):
-    resetTP = [TopicPartition(topic, 0, 0)]
-    consumer.assign(resetTP)
-    consumer.seek(resetTP[0])
-
-def close_consumer(consumer):
-    print("\nClosing consumer.")
-    consumer.close()
+from confluent_kafka import Consumer
+from change_detection_utils import *
 
 def cusum_detector(data, threshold):
     mean = sum(data) / len(data)
@@ -24,18 +10,13 @@ def cusum_detector(data, threshold):
         cusum = max(0, cusum + value - mean - threshold)
     return cusum
 
-# consumer_cleanup()
+consumer_cleanup()
 topic = 'water-treatment-preproc'
 
-consumer_conf = {
-    'bootstrap.servers': 'localhost:9092',
-    'group.id': 'water-treatment-group',
-    'auto.offset.reset': 'earliest',
-    'enable.auto.commit': 'false'
-}
+consumer_conf = {'bootstrap.servers': 'localhost:9092', 'group.id': 'water-treatment-group', 'auto.offset.reset': 'earliest', 'enable.auto.commit': 'false'}
 c = Consumer(consumer_conf)
-c.subscribe([topic], on_assign=assignment_callback)
-reset_offset(c, topic)
+c.subscribe([topic], on_assign=assignment_callback) # Subscribe to topic
+reset_offset(c, topic) # Reset offset back to start in case it moved so the consumer can read the entire topic
 
 # Initialize variables for drift detection and performance metrics
 msgCount = 0
@@ -43,9 +24,13 @@ history_size = 10
 history = []
 threshold_multiplier = 5  # Adjust this multiplier for sensitivity
 cusum_threshold = 1.0  # Adjust this threshold for CUSUM sensitivity
-detections = 0
-false_alarms = 0
-detection_delays = []
+
+algorithm = "cusum"
+detections = 0 # Actual detections (one per attack)
+false_alarms = 0 # False alarms (with attack_label == "normal")
+attacksDetected = [0, 0, 0, 0, 0, 0] # There are six attacks; if the algorithm detects one, set the corresponding element to 1
+detection_delays = [0, 0, 0, 0, 0, 0]
+msgCount = 0
 
 try:
     while True:
@@ -77,13 +62,15 @@ try:
                 print(f"Change point detected at time {timestamp}, value: {current_value}, label {features['attack_label'].item()}, CUSUM value: {cusum_value}")
 
                 # Check if it's actually a change based on the attack label
-                if features["attack_label"].item() == "attack":
+                if(features["attack_label"].item() == "attack"): # If so, figure out which attack it detected and with what delay
+                    attackNum, delay = which_attack(features["timestamp"].item())
+                    if(attacksDetected[attackNum - 1] == 0): # And store the results
+                        attacksDetected[attackNum - 1] = 1
+                    if(detection_delays[attackNum - 1] == 0):
+                        detection_delays[attackNum - 1] = delay
                     detections += 1
-                    detection_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
-                    detection_delays.append((time.time() - detection_time.timestamp()) * 1000)  # Convert to milliseconds
                 else:
                     false_alarms += 1
-                    print(f"False alarm detected at time {timestamp}, value: {current_value}, label {features['attack_label'].item()}, CUSUM value: {cusum_value}")
 
             print(f"\r{msgCount} records analysed. Total Detections: {detections}, False Alarms: {false_alarms}", end='', flush=True)
 
@@ -91,14 +78,8 @@ except KeyboardInterrupt:
     pass
 
 finally:
-    close_consumer(c)
-
-    # Print performance metrics
-    print(f"\nPerformance Metrics:")
-    print(f"Total Detections: {detections}")
-    print(f"False Alarms: {false_alarms}")
-    if detections > 0:
-        avg_delay = sum(detection_delays) / detections
-        print(f"Average Detection Delay: {avg_delay:.2f} milliseconds")
-    else:
-        print("No detections to calculate average delay.")
+	print("Closing consumer.")
+	print(f"Detection statistics:\nActual detections: {detections}\nDetected attacks: {attacksDetected}\nDetection delays: {detection_delays}\nFalse alarms: {false_alarms}")
+	# Fill out results dictionary
+	save_results(algorithm, detections, false_alarms, attacksDetected, detection_delays) # Save results in a csv
+	c.close()

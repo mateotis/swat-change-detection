@@ -1,8 +1,6 @@
 from influxdb_client import InfluxDBClient
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score
-import numpy as np
 import os
 from dotenv import load_dotenv
 
@@ -35,18 +33,20 @@ try:
     df = client.query_api().query_data_frame(org=INFLUXDB_ORG, query=query) # Turn the query results into a dataframe (that's what the pivot row was for)
     df = df.drop(columns=["result", "table"])
     print(df)
+
+    SPLIT_THRESHOLD = 11000
     
     # Check if data is not empty
     if len(df) > 0:
         # last column is the attack_label
-        X = df.drop(columns = ["attack_label"])
-        y = df["attack_label"]
-
-        # Reshape y to ensure it's a 1D array
-        y = y.ravel()
+        training_set = df[:SPLIT_THRESHOLD] # First 11 thousand records form the training set: this includes the lengthy period of "normal" operation and the first three attacks
+        testing_set = df[SPLIT_THRESHOLD:] # The remaining ~4 thousand are the test set; this includes the other three attacks
 
         # Split the data into training and testing sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train = training_set.drop(columns = ["attack_label"])
+        y_train = training_set["attack_label"].ravel()
+        X_test = testing_set.drop(columns = ["attack_label"])
+        y_test = testing_set["attack_label"].ravel()
 
         # Initialize the Decision Tree classifier
         classifier = DecisionTreeClassifier()
@@ -59,7 +59,11 @@ try:
 
         # Evaluate accuracy
         accuracy = accuracy_score(y_test, y_pred)
-        print(f"Accuracy: {accuracy}")
+        print(f"Accuracy: {accuracy}") # The accuracy of the decision tree is around 72%, better than the other methods (RF and SVM) we tried
+        # Still, it shows how difficult change detection is on this dataset
+
+        cm = confusion_matrix(y_test, y_pred, labels=classifier.classes_)
+        print("Confusion matrix:", cm)
     else:
         print("No data retrieved from InfluxDB.")
 
