@@ -37,3 +37,6 @@
 
 ### Contributions:
 **Máté:** docker-compose file, Kafka data ingestion as stream, Kafka and Spark connection, Spark data transformation, TIG stack (Telegraf, InfluxDB, Grafana) setup and configuration, change detection algorithms (kdq-tree, PCA-CD, KS-WIN, 1-class-SVM), batch training, detection results tracking and graphing, readme instructions
+
+**Vrushali:** Kafka and Spark connection, Spark sliding window aggregation, change detection algorithms(CUSUM, CvM, KDE), Batch training, Chronograf setup and configuration, Chronograf Dashboard, InfluxDB visualizations, Report, Presentation.
+
